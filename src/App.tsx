@@ -68,7 +68,7 @@ function App() {
     refresh: refreshApiRequests
   } = useApiRequests();
   const [requests, setRequests] = useState(initialRequests);
-  const [activeNav, setActiveNav] = useState("Overview");
+  const [activeNav, setActiveNav] = useState(() => new URLSearchParams(window.location.search).get("view") || "Overview");
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [statusFilter, setStatusFilter] = useState(() => new URLSearchParams(window.location.search).get("status") || "All");
   const [methodFilter, setMethodFilter] = useState(() => new URLSearchParams(window.location.search).get("method") || "All");
@@ -82,6 +82,44 @@ function App() {
   const [rules, setRules] = useState(defaultRules);
   const [monitoringEnabled, setMonitoringEnabled] = useState(true);
   const [showRules, setShowRules] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [liveTick, setLiveTick] = useState(0);
+
+  const navigateTo = (view: string) => {
+    setActiveNav(view);
+    setMobileMenu(false);
+    const params = new URLSearchParams(window.location.search);
+    if (view === "Overview") params.delete("view");
+    else params.set("view", view);
+    const query = params.toString();
+    window.history.pushState({}, "", window.location.pathname + (query ? `?${query}` : ""));
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("view") || "Overview";
+      if (navigation.some(item => item.name === view)) setActiveNav(view);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!live || apiLoading) return;
+    const interval = window.setInterval(() => { void refreshApiRequests(); }, 15000);
+    return () => window.clearInterval(interval);
+  }, [live, apiLoading, refreshApiRequests]);
+
+  // Demo telemetry animation: live charts update every 2.5 seconds.
+  // Replace generated trend samples with historical metrics from the backend in production.
+  useEffect(() => {
+    if (!live) return;
+    const interval = window.setInterval(() => {
+      setLiveTick(tick => tick + 1);
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [live]);
 
   useEffect(() => {
     if (apiRequests.length === 0) return;
@@ -108,8 +146,21 @@ function App() {
 
     setRequests(converted);
   }, [apiRequests]);
+  const periodRequests = useMemo(() => {
+    const rangeMs =
+      period === "Last 7 days" ? 7 * 24 * 60 * 60 * 1000 :
+      period === "Last 30 days" ? 30 * 24 * 60 * 60 * 1000 :
+      24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - rangeMs;
+    return requests.filter(request => {
+      if (!request.timestamp) return true;
+      const timestamp = Date.parse(request.timestamp);
+      return !Number.isFinite(timestamp) || timestamp >= cutoff;
+    });
+  }, [requests, period]);
+
   const filtered = useMemo(() => {
-    return [...requests]
+    return [...periodRequests]
       .filter(r =>
         `${r.endpoint} ${r.method} ${r.status} ${r.error || ""}`
           .toLowerCase().includes(search.toLowerCase())
@@ -123,7 +174,7 @@ function App() {
       .sort((a, b) =>
         sortAsc ? a.duration - b.duration : b.duration - a.duration
       );
-  }, [requests, search, statusFilter, methodFilter, sortAsc]);
+  }, [periodRequests, search, statusFilter, methodFilter, sortAsc]);
 
   useEffect(() => {
     setPage(1);
@@ -144,47 +195,51 @@ function App() {
     if (methodFilter !== "All") params.set("method", methodFilter);
     if (currentPage > 1) params.set("page", String(currentPage));
     if (pageSize !== 6) params.set("size", String(pageSize));
+    if (activeNav !== "Overview") params.set("view", activeNav);
 
     const query = params.toString();
     const nextUrl = window.location.pathname + (query ? "?" + query : "");
     window.history.replaceState({}, "", nextUrl);
-  }, [search, statusFilter, methodFilter, currentPage, pageSize]);
+  }, [search, statusFilter, methodFilter, currentPage, pageSize, activeNav]);
 
 
-  const total = requests.length;
-  const failed = requests.filter(r => r.status >= 400).length;
+  const total = periodRequests.length;
+  const failed = periodRequests.filter(r => r.status >= 400).length;
   const successful = total - failed;
   const successRate = total ? ((successful / total) * 100).toFixed(2) : "0.00";
   const failureRate = total ? ((failed / total) * 100).toFixed(2) : "0.00";
   const average = total
-    ? Math.round(requests.reduce((sum, r) => sum + r.duration, 0) / total)
+    ? Math.round(periodRequests.reduce((sum, r) => sum + r.duration, 0) / total)
     : 0;
 
-  // Build response-time samples from the loaded requests.
-  const sortedRequests = [...requests].sort((a, b) => {
-    const aTime = a.timestamp ? Date.parse(a.timestamp) : 0;
-    const bTime = b.timestamp ? Date.parse(b.timestamp) : 0;
-    return (Number.isFinite(aTime) ? aTime : 0) -
-      (Number.isFinite(bTime) ? bTime : 0);
-  });
+  // Interactive trend preview for the selected time range.
+  // The current API supplies request records, not historical metric buckets,
+  // so these trend points are simulated from the loaded request baseline.
+  const chartData = useMemo(() => {
+    const averageBaseline = periodRequests.length
+      ? periodRequests.reduce((sum, request) => sum + request.duration, 0) / periodRequests.length
+      : 180;
+    const periodFactor = period === "Last 7 days" ? 1.08 : period === "Last 30 days" ? 0.94 : 1;
+    const labels = period === "Last 24 hours"
+      ? ["00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "Now"]
+      : period === "Last 7 days"
+        ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Now"]
+        : ["1", "3", "6", "8", "11", "14", "16", "19", "22", "25", "28", "Now"];
 
-  const chartData: { time: string; avg: number; p95: number }[] = [];
-  const bucketSize = Math.max(1, Math.ceil(sortedRequests.length / 8));
-
-  for (let i = 0; i < sortedRequests.length; i += bucketSize) {
-    const group = sortedRequests.slice(i, i + bucketSize);
-    const durations = group.map(r => r.duration).sort((a, b) => a - b);
-    const avg = Math.round(
-      durations.reduce((sum, value) => sum + value, 0) / durations.length
-    );
-    const p95 = durations[Math.max(0, Math.ceil(durations.length * 0.95) - 1)];
-
-    chartData.push({
-      time: group[0].time || `Sample ${chartData.length + 1}`,
-      avg,
-      p95
+    return labels.map((time, index) => {
+      const wave = Math.sin((index + liveTick * 0.65) * 0.82) * 0.19;
+      const secondaryWave = Math.cos((index * 0.57) + liveTick * 0.34) * 0.09;
+      const trend = 1 + wave + secondaryWave;
+      const avg = Math.max(25, Math.round(averageBaseline * periodFactor * trend));
+      const p95 = Math.round(avg * (1.28 + ((index % 4) * 0.07)));
+      return { time, avg, p95 };
     });
-  }
+  }, [periodRequests, period, liveTick]);
+
+  const liveAverage = Math.max(
+    1,
+    Math.round(average + Math.sin(liveTick * 0.7) * Math.max(8, average * 0.035))
+  );
 
   const statusData = [
     {
@@ -200,7 +255,7 @@ function App() {
   ];
 
   // Calculate average latency for each endpoint.
-  const endpointGroups = requests.reduce((groups, request) => {
+  const endpointGroups = periodRequests.reduce((groups, request) => {
     if (!groups[request.endpoint]) groups[request.endpoint] = [];
     groups[request.endpoint].push(request.duration);
     return groups;
@@ -236,12 +291,17 @@ function App() {
 
   const anomalies = monitoringEnabled
     ? [
-        ...requests.flatMap(r => detectAnomalies(r, rules)),
-        ...detectHighErrorRate(requests, rules.maxErrorRate)
+        ...periodRequests.flatMap(r => detectAnomalies(r, rules)),
+        ...detectHighErrorRate(periodRequests, rules.maxErrorRate)
       ]
     : [];
-  const refresh = () => {
-    void refreshApiRequests();
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshApiRequests();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const exportCSV = () => {
@@ -273,23 +333,28 @@ function App() {
   };
 
   const stats = [
-    { title: "Total Requests", value: total.toLocaleString("en-IN"), change: "+12.4%", positive: true, icon: Activity, color: "violet", note: "vs previous period" },
+    { title: "Total Requests", value: total.toLocaleString("en-IN"), change: "+12.4%", positive: true, icon: Activity, color: "blue", note: "vs previous period" },
     { title: "Success Rate", value: `${successRate}%`, change: "+0.8%", positive: true, icon: CheckCircle2, color: "emerald", note: "vs previous period" },
     { title: "Failure Rate", value: `${failureRate}%`, change: "Live calculation", positive: false, icon: XCircle, color: "rose", note: "vs previous period" },
-    { title: "Avg. Response Time", value: `${average} ms`, change: "-14.2%", positive: true, icon: Zap, color: "amber", note: "vs previous period" }
+    { title: "Avg. Response Time", value: `${liveAverage} ms`, change: live ? "LIVE" : "PAUSED", positive: true, icon: Zap, color: "amber", note: "demo telemetry reading" }
   ];
 
   return (
-    <div className="min-h-screen bg-[#080b16] text-slate-200 flex">
+    <div className="relative min-h-screen bg-transparent text-slate-200 flex">
+      <div className="particle-field" aria-hidden="true">
+        {Array.from({ length: 28 }, (_, i) => (
+          <span key={i} className={`particle particle-${i % 8}`} />
+        ))}
+      </div>
 
       {mobileMenu && (
         <div className="fixed inset-0 z-40 bg-black/70 lg:hidden" onClick={() => setMobileMenu(false)} />
       )}
 
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-[250px] shrink-0 border-r border-white/[0.07] bg-[#0b1020] flex flex-col transition-transform duration-300 ${mobileMenu ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-[250px] shrink-0 border-r border-white/[0.07] bg-[#091a30] flex flex-col transition-transform duration-300 ${mobileMenu ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="h-[82px] px-6 flex items-center gap-3 border-b border-white/[0.06]">
-          <div className="w-10 h-10 rounded-xl bg-violet-600/20 flex items-center justify-center border border-violet-400/30">
-            <Activity className="text-violet-400" size={25} />
+          <div className="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center border border-blue-400/30">
+            <Activity className="text-blue-400" size={25} />
           </div>
           <div>
             <h1 className="font-bold text-lg tracking-tight text-white">Nexus Observe</h1>
@@ -305,11 +370,11 @@ function App() {
               const Icon = item.icon;
               return (
                 <button key={item.name}
-                  onClick={() => { setActiveNav(item.name); setMobileMenu(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all ${activeNav === item.name ? "bg-violet-600/20 text-violet-300 border border-violet-500/20" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
+                  onClick={() => navigateTo(item.name)}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all ${activeNav === item.name ? "bg-blue-600/20 text-blue-300 border border-blue-500/20" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>
                   <Icon size={18}/>
                   <span>{item.name}</span>
-                  {item.name === "Anomalies" && <span className="ml-auto bg-rose-500 text-white text-[10px] rounded-full px-2 py-0.5">3</span>}
+                  {item.name === "Anomalies" && anomalies.length > 0 && <span className="ml-auto bg-rose-500 text-white text-[10px] rounded-full px-2 py-0.5">{anomalies.length}</span>}
                 </button>
               );
             })}
@@ -317,13 +382,13 @@ function App() {
         </div>
 
         <div className="mt-auto p-4 space-y-5">
-          <div className="rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-600/15 to-cyan-500/5 p-4">
-            <div className="flex items-center gap-2 text-violet-300 text-xs font-semibold mb-2"><Zap size={15}/> OBSERVABILITY TIP</div>
+          <div className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-600/15 to-cyan-500/5 p-4">
+            <div className="flex items-center gap-2 text-blue-300 text-xs font-semibold mb-2"><Zap size={15}/> OBSERVABILITY TIP</div>
             <p className="text-xs text-slate-400 leading-relaxed">Keep your API response times healthy. Monitor, analyze and optimize.</p>
-            <button onClick={() => setActiveNav("Performance")} className="text-xs text-violet-300 mt-3 hover:text-white">Explore performance Ã¢â€ â€™</button>
+            <button onClick={() => navigateTo("Performance")} className="text-xs text-blue-300 mt-3 hover:text-white">Explore performance Ã¢â€ â€™</button>
           </div>
           <div className="border-t border-white/[0.07] pt-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white font-bold">M</div>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold">M</div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white">Developer</p>
               <p className="text-[11px] text-slate-500">Frontend Engineer</p>
@@ -334,12 +399,12 @@ function App() {
       </aside>
 
       <main className="min-w-0 flex-1">
-        <header className="h-[76px] px-4 md:px-8 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-[#0b1020]/80 sticky top-0 z-30 backdrop-blur-xl">
+        <header className="h-[76px] px-4 md:px-8 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-[#091a30]/80 sticky top-0 z-30 backdrop-blur-xl">
           <div className="flex items-center gap-3 min-w-0">
             <button className="lg:hidden text-slate-300" onClick={() => setMobileMenu(true)}><Menu/></button>
             <div className="relative hidden sm:block w-48 md:w-72 xl:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={17}/>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search APIs, endpoints, errors..." className="w-full bg-[#151c30] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none focus:border-violet-500/60 placeholder:text-slate-600"/>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search APIs, endpoints, errors..." className="w-full bg-[#102541] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none focus:border-blue-500/60 placeholder:text-slate-600"/>
             </div>
           </div>
 
@@ -348,13 +413,13 @@ function App() {
               <span className={`w-2 h-2 rounded-full ${live ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`}/>
               {live ? "Live Monitoring" : "Monitoring Paused"}
             </button>
-            <select value={period} onChange={e => setPeriod(e.target.value)} className="hidden md:block bg-[#151c30] border border-white/10 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-300">
+            <select value={period} onChange={e => setPeriod(e.target.value)} className="hidden md:block bg-[#102541] border border-white/10 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-300">
               <option>Last 24 hours</option>
               <option>Last 7 days</option>
               <option>Last 30 days</option>
             </select>
-            <button onClick={refresh} title="Refresh data" className="p-2.5 bg-[#151c30] border border-white/10 rounded-xl hover:border-violet-500/50 transition"><RefreshCw size={17} className="text-slate-300"/></button>
-            <button title="Notifications" onClick={() => setActiveNav("Anomalies")} className="relative p-2.5 bg-[#151c30] border border-white/10 rounded-xl hover:border-violet-500/50"><Bell size={17}/><span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full"/></button>
+            <button onClick={refresh} disabled={refreshing || apiLoading} title="Refresh data" aria-label="Refresh data" className="p-2.5 bg-[#102541] border border-white/10 rounded-xl hover:border-blue-500/50 transition disabled:opacity-50"><RefreshCw size={17} className={`text-slate-300 ${refreshing || apiLoading ? "animate-spin" : ""}`}/></button>
+            <button title="Notifications" onClick={() => navigateTo("Anomalies")} className="relative p-2.5 bg-[#102541] border border-white/10 rounded-xl hover:border-blue-500/50"><Bell size={17}/><span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full"/></button>
           </div>
         </header>
 
@@ -378,30 +443,30 @@ function App() {
             )}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="text-xs text-violet-400 font-medium mb-2 tracking-wide">MONITORING / {activeNav.toUpperCase()}</p>
+              <p className="text-xs text-blue-400 font-medium mb-2 tracking-wide">MONITORING / {activeNav.toUpperCase()}</p>
               <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{activeNav}</h2>
               <p className="text-sm text-slate-500 mt-1">Real-time API health, performance and application insights.</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setLive(!live)} className="sm:hidden flex items-center gap-2 text-xs bg-[#151c30] border border-white/10 rounded-lg px-3 py-2">
+              <button onClick={() => setLive(!live)} className="sm:hidden flex items-center gap-2 text-xs bg-[#102541] border border-white/10 rounded-lg px-3 py-2">
                 {live ? <Pause size={14}/> : <Play size={14}/>} {live ? "Pause" : "Resume"}
               </button>
-              <button onClick={addSample} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition shadow-lg shadow-violet-900/20">
+              <button onClick={addSample} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition shadow-lg shadow-blue-900/20">
                 <Activity size={15}/> Add sample request
               </button>
             </div>
           </div>
 
-          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {(activeNav === "Overview" || activeNav === "Performance") && <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {stats.map((stat, i) => {
               const Icon = stat.icon;
               return (
                 <motion.div initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.08}} key={stat.title}
-                  className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#11182a] p-5 hover:border-violet-500/30 transition group">
-                  <div className={`absolute -right-8 -top-10 w-32 h-32 rounded-full blur-3xl opacity-10 ${stat.color === "violet" ? "bg-violet-500" : stat.color === "emerald" ? "bg-emerald-500" : stat.color === "rose" ? "bg-rose-500" : "bg-amber-500"}`}/>
+                  className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5 hover:border-blue-500/30 transition group">
+                  <div className={`absolute -right-8 -top-10 w-32 h-32 rounded-full blur-3xl opacity-10 ${stat.color === "blue" ? "bg-blue-500" : stat.color === "emerald" ? "bg-emerald-500" : stat.color === "rose" ? "bg-rose-500" : "bg-amber-500"}`}/>
                   <div className="flex items-center justify-between relative">
                     <p className="text-sm text-slate-400">{stat.title}</p>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color === "violet" ? "bg-violet-500/15 text-violet-400" : stat.color === "emerald" ? "bg-emerald-500/15 text-emerald-400" : stat.color === "rose" ? "bg-rose-500/15 text-rose-400" : "bg-amber-500/15 text-amber-400"}`}><Icon size={20}/></div>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color === "blue" ? "bg-blue-500/15 text-blue-400" : stat.color === "emerald" ? "bg-emerald-500/15 text-emerald-400" : stat.color === "rose" ? "bg-rose-500/15 text-rose-400" : "bg-amber-500/15 text-amber-400"}`}><Icon size={20}/></div>
                   </div>
                   <h3 className="text-2xl md:text-3xl font-bold text-white mt-4 tracking-tight">{stat.value}</h3>
                   <div className="flex items-center gap-2 mt-3 text-xs">
@@ -411,23 +476,23 @@ function App() {
                 </motion.div>
               );
             })}
-          </section>
+          </section>}
 
-          <section className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-7 rounded-2xl border border-white/[0.08] bg-[#11182a] p-5 min-w-0">
+          {(activeNav === "Overview" || activeNav === "Performance") && <section className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="xl:col-span-7 rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5 min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 <div>
                   <h3 className="text-base font-semibold text-white">Response Time Trends</h3>
-                  <p className="text-xs text-slate-500 mt-1">Average latency and P95 performance</p>
+                  <p className="text-xs text-slate-500 mt-1">Average latency and P95 · {period} · simulated demo history</p>
                 </div>
-                <div className="flex gap-3 text-[11px] text-slate-400">
-                  <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-violet-400"/> Average</span>
+                <div className="flex items-center gap-2 text-[10px] text-slate-500"><span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`}/>{live ? "STREAMING" : "PAUSED"}</div><div className="flex gap-3 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-blue-400"/> Average</span>
                   <span className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-cyan-400"/> P95</span>
                 </div>
               </div>
               <div className="h-[260px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
+                  <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <defs>
                       <linearGradient id="purpleFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.35}/><stop offset="100%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient>
                       <linearGradient id="cyanFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22d3ee" stopOpacity={0.15}/><stop offset="100%" stopColor="#22d3ee" stopOpacity={0}/></linearGradient>
@@ -436,14 +501,14 @@ function App() {
                     <XAxis dataKey="time" stroke="#64748b" tickLine={false} axisLine={false} tick={{fontSize:10}}/>
                     <YAxis stroke="#64748b" tickLine={false} axisLine={false} tick={{fontSize:10}}/>
                     <Tooltip contentStyle={{background:"#111827",border:"1px solid #374151",borderRadius:12,fontSize:12}}/>
-                    <Area type="monotone" dataKey="p95" stroke="#22d3ee" strokeWidth={2} fill="url(#cyanFill)"/>
-                    <Area type="monotone" dataKey="avg" stroke="#a78bfa" strokeWidth={2.5} fill="url(#purpleFill)"/>
+                    <Area type="monotone" dataKey="p95" stroke="#22d3ee" strokeWidth={2} fill="url(#cyanFill)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={850} animationEasing="ease-in-out"/>
+                    <Area type="monotone" dataKey="avg" stroke="#60a5fa" strokeWidth={2.5} fill="url(#purpleFill)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={850} animationEasing="ease-in-out"/>
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="xl:col-span-2 rounded-2xl border border-white/[0.08] bg-[#11182a] p-5 flex flex-col">
+            <div className="xl:col-span-2 rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5 flex flex-col">
               <h3 className="text-sm font-semibold text-white">Request Status</h3>
               <p className="text-xs text-slate-500 mt-1">Distribution overview</p>
               <div className="h-[175px] relative mt-3">
@@ -465,10 +530,10 @@ function App() {
               </div>
             </div>
 
-            <div className="xl:col-span-3 rounded-2xl border border-white/[0.08] bg-[#11182a] p-5">
+            <div className="xl:col-span-3 rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-semibold text-white">Top Slow Endpoints</h3>
-                <button onClick={() => {setActiveNav("API Explorer");setStatusFilter("All");}} className="text-[11px] text-violet-400 hover:text-violet-300">View all Ã¢â€ â€™</button>
+                <button onClick={() => {setStatusFilter("All");navigateTo("API Explorer");}} className="text-[11px] text-blue-400 hover:text-blue-300">View all Ã¢â€ â€™</button>
               </div>
               <div className="space-y-5 mt-6">
                 {slowEndpoints.map(item => <div key={item.name}>
@@ -476,38 +541,38 @@ function App() {
                   <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className={`h-full rounded-full ${item.color}`} style={{width:`${item.value}%`}}/></div>
                 </div>)}
               </div>
-              <div className="mt-7 pt-4 border-t border-white/[0.06] flex items-center gap-2 text-xs text-slate-500"><Clock3 size={14}/> Latency threshold: 500 ms</div>
+              <div className="mt-7 pt-4 border-t border-white/[0.06] flex items-center gap-2 text-xs text-slate-500"><Clock3 size={14}/> Ranked by average response time</div>
             </div>
-          </section>
+          </section>}
 
-          <section className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-9 rounded-2xl border border-white/[0.08] bg-[#11182a] overflow-hidden">
+          {(activeNav === "Overview" || activeNav === "API Explorer") && <section className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="xl:col-span-9 rounded-2xl border border-white/[0.08] bg-[#0b1d35] overflow-hidden">
               <div className="p-5 border-b border-white/[0.07] flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-base font-semibold text-white">API Request Explorer</h3>
                   <p className="text-xs text-slate-500 mt-1">Inspect and investigate application requests</p>
                 </div>
-                <button onClick={exportCSV} className="flex items-center gap-2 text-xs text-slate-300 border border-white/10 rounded-lg px-3 py-2 hover:border-violet-500/40"><Download size={14}/> Export CSV</button>
+                <button onClick={exportCSV} className="flex items-center gap-2 text-xs text-slate-300 border border-white/10 rounded-lg px-3 py-2 hover:border-blue-500/40"><Download size={14}/> Export CSV</button>
               </div>
 
               <div className="p-4 flex flex-col sm:flex-row flex-wrap gap-2">
                 <div className="relative flex-1 min-w-[180px] sm:hidden">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15}/>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search requests..." className="w-full bg-[#0b1020] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs outline-none focus:border-violet-500/50"/>
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search requests..." className="w-full bg-[#091a30] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs outline-none focus:border-blue-500/50"/>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500"><Filter size={15}/> Filters:</div>
-                <select value={methodFilter} onChange={e=>setMethodFilter(e.target.value)} className="bg-[#0b1020] border border-white/10 rounded-lg px-3 py-2 text-xs outline-none">
+                <select value={methodFilter} onChange={e=>setMethodFilter(e.target.value)} className="bg-[#091a30] border border-white/10 rounded-lg px-3 py-2 text-xs outline-none">
                   {["All","GET","POST","PUT","DELETE"].map(x=><option key={x} value={x}>{x === "All" ? "All methods" : x}</option>)}
                 </select>
-                <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="bg-[#0b1020] border border-white/10 rounded-lg px-3 py-2 text-xs outline-none">
+                <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="bg-[#091a30] border border-white/10 rounded-lg px-3 py-2 text-xs outline-none">
                   {["All","Success","Failed"].map(x=><option key={x}>{x}</option>)}
                 </select>
-                <button onClick={()=>{setSearch("");setStatusFilter("All");setMethodFilter("All");setPage(1);}} className="text-xs text-violet-400 hover:text-white px-2">Reset filters</button>
+                <button onClick={()=>{setSearch("");setStatusFilter("All");setMethodFilter("All");setPage(1);}} className="text-xs text-blue-400 hover:text-white px-2">Reset filters</button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left min-w-[700px]">
-                  <thead className="bg-[#0b1020]/70 text-[10px] uppercase tracking-wider text-slate-500">
+                  <thead className="bg-[#091a30]/70 text-[10px] uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-5 py-3 font-medium">Time</th>
                       <th className="px-3 py-3 font-medium">Method</th>
@@ -519,14 +584,14 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.05]">
-                    {pageRequests.map(r=><tr key={r.id} className="hover:bg-violet-500/[0.04] transition group">
+                    {pageRequests.map(r=><tr key={r.id} className="hover:bg-blue-500/[0.04] transition group">
                       <td className="px-5 py-4 text-xs text-slate-500">{r.time}</td>
-                      <td className="px-3 py-4"><span className={`text-[10px] font-bold px-2 py-1 rounded-md ${r.method==="GET"?"bg-cyan-500/10 text-cyan-400":r.method==="POST"?"bg-violet-500/10 text-violet-400":r.method==="PUT"?"bg-amber-500/10 text-amber-400":"bg-rose-500/10 text-rose-400"}`}>{r.method}</span></td>
+                      <td className="px-3 py-4"><span className={`text-[10px] font-bold px-2 py-1 rounded-md ${r.method==="GET"?"bg-cyan-500/10 text-cyan-400":r.method==="POST"?"bg-blue-500/10 text-blue-400":r.method==="PUT"?"bg-amber-500/10 text-amber-400":"bg-rose-500/10 text-rose-400"}`}>{r.method}</span></td>
                       <td className="px-3 py-4 text-xs text-slate-300 font-medium">{r.endpoint}</td>
                       <td className="px-3 py-4"><span className={`text-[10px] px-2 py-1 rounded-md font-semibold ${r.status<300?"bg-emerald-500/10 text-emerald-400":r.status<400?"bg-blue-500/10 text-blue-400":"bg-rose-500/10 text-rose-400"}`}>{r.status}</span></td>
                       <td className={`px-3 py-4 text-xs font-semibold ${r.duration>1000?"text-rose-400":r.duration>500?"text-amber-400":"text-slate-300"}`}>{r.duration} ms</td>
                       <td className="px-3 py-4 text-xs text-slate-500">{r.size}</td>
-                      <td className="px-5 py-4 text-right"><button onClick={()=>setSelected(r)} className="p-2 rounded-lg text-slate-500 hover:text-violet-300 hover:bg-violet-500/10"><Eye size={16}/></button></td>
+                      <td className="px-5 py-4 text-right"><button onClick={()=>setSelected(r)} className="p-2 rounded-lg text-slate-500 hover:text-blue-300 hover:bg-blue-500/10"><Eye size={16}/></button></td>
                     </tr>)}
                     {filtered.length===0 && <tr><td colSpan={7} className="text-center py-12 text-sm text-slate-500">No requests match your filters.</td></tr>}
                   </tbody>
@@ -538,52 +603,87 @@ function App() {
                 </span>
                 <div className="flex items-center gap-2">
                   <label htmlFor="pageSize" className="hidden sm:block">Rows:</label>
-                  <select id="pageSize" value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="bg-[#0b1020] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300">
+                  <select id="pageSize" value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="bg-[#091a30] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300">
                     <option value={6}>6</option>
                     <option value={10}>10</option>
                     <option value={20}>20</option>
                   </select>
-                  <button aria-label="Previous page" disabled={currentPage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-2 rounded-lg border border-white/10 hover:border-violet-500 disabled:opacity-30 disabled:cursor-not-allowed">Ã¢â€ Â</button>
+                  <button aria-label="Previous page" disabled={currentPage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-2 rounded-lg border border-white/10 hover:border-blue-500 disabled:opacity-30 disabled:cursor-not-allowed">Ã¢â€ Â</button>
                   <span className="text-slate-300">{currentPage} / {totalPages}</span>
-                  <button aria-label="Next page" disabled={currentPage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="px-3 py-2 rounded-lg border border-white/10 hover:border-violet-500 disabled:opacity-30 disabled:cursor-not-allowed">Ã¢â€ â€™</button>
+                  <button aria-label="Next page" disabled={currentPage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="px-3 py-2 rounded-lg border border-white/10 hover:border-blue-500 disabled:opacity-30 disabled:cursor-not-allowed">Ã¢â€ â€™</button>
                 </div>
               </div>
             </div>
 
             <div className="xl:col-span-3 space-y-4">
-              <div className="rounded-2xl border border-rose-500/15 bg-[#11182a] p-5">
+              <div className="rounded-2xl border border-rose-500/15 bg-[#0b1d35] p-5">
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="text-sm font-semibold text-white flex items-center gap-2"><AlertTriangle size={16} className="text-rose-400"/> Anomaly Alerts</h3>
                   <span className="text-[10px] bg-rose-500/10 text-rose-400 px-2 py-1 rounded-full">{anomalies.length} Active</span>
                 </div>
                 <div className="space-y-4">
-                  {[
-                    {title:"High error rate",path:"/api/orders",time:"5 min ago",type:"critical"},
-                    {title:"Slow response",path:"/api/products",time:"12 min ago",type:"warning"},
-                    {title:"Traffic spike",path:"Application traffic",time:"18 min ago",type:"warning"}
-                  ].map(item=><button key={item.title} onClick={()=>setActiveNav("Anomalies")} className="w-full text-left flex gap-3 items-start group">
-                    <span className={`mt-1 w-7 h-7 shrink-0 rounded-lg flex items-center justify-center ${item.type==="critical"?"bg-rose-500/10 text-rose-400":"bg-amber-500/10 text-amber-400"}`}><AlertTriangle size={14}/></span>
-                    <span className="min-w-0"><span className="block text-xs text-slate-200 font-medium group-hover:text-violet-300">{item.title}</span><span className="block text-[11px] text-slate-500 mt-1">{item.path}</span><span className="block text-[10px] text-slate-600 mt-1">{item.time}</span></span>
-                  </button>)}
+                  {periodRequests.filter(r => r.status >= 400 || r.duration >= 1000).slice(0, 4).map(r => (
+                    <button key={r.id} onClick={() => setSelected(r)} className="w-full text-left flex gap-3 items-start group">
+                      <span className={`mt-1 w-7 h-7 shrink-0 rounded-lg flex items-center justify-center ${r.status >= 400 ? "bg-rose-500/10 text-rose-400" : "bg-amber-500/10 text-amber-400"}`}><AlertTriangle size={14}/></span>
+                      <span className="min-w-0">
+                        <span className="block text-xs text-slate-200 font-medium group-hover:text-blue-300">{r.status >= 400 ? `HTTP ${r.status} failure` : "Slow response"}</span>
+                        <span className="block text-[11px] text-slate-500 mt-1">{r.endpoint}</span>
+                        <span className="block text-[10px] text-slate-600 mt-1">{r.duration} ms</span>
+                      </span>
+                    </button>
+                  ))}
+                  {periodRequests.filter(r => r.status >= 400 || r.duration >= 1000).length === 0 && <p className="text-xs text-slate-500">No request-level alerts.</p>}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-600/20 to-[#11182a] p-5">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center text-violet-300 mb-3"><Settings size={21}/></div>
+              <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 to-[#0b1d35] p-5">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-300 mb-3"><Settings size={21}/></div>
                 <h3 className="text-sm font-semibold text-white">Anomaly Configuration</h3>
                 <p className="text-xs text-slate-400 mt-2 leading-relaxed">Customize response time and error-rate thresholds for your APIs.</p>
-<p className="text-[11px] text-violet-300 mt-2">{anomalies.length} rule alerts currently detected from the demo requests.</p>
-<p className="text-[11px] text-violet-300 mt-2">{anomalies.length} rule alerts currently detected from the demo requests.</p>
-                <button onClick={()=>setShowRules(true)} className="mt-4 w-full rounded-lg bg-violet-600 hover:bg-violet-500 py-2.5 text-xs font-semibold text-white transition">Configure rules <ArrowUpRight className="inline ml-1" size={13}/></button>
+<p className="text-[11px] text-blue-300 mt-2">{anomalies.length} rule alerts currently detected from the loaded requests.</p>
+                <button onClick={()=>setShowRules(true)} className="mt-4 w-full rounded-lg bg-blue-600 hover:bg-blue-500 py-2.5 text-xs font-semibold text-white transition">Configure rules <ArrowUpRight className="inline ml-1" size={13}/></button>
               </div>
 
-              <div className="rounded-2xl border border-white/[0.08] bg-[#11182a] p-5">
+              <div className="rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5">
                 <div className="flex justify-between items-center"><span className="text-xs text-slate-400">Monitoring status</span><span className={`text-[10px] font-medium ${live?"text-emerald-400":"text-slate-500"}`}>{live?"ACTIVE":"PAUSED"}</span></div>
                 <button onClick={()=>setLive(!live)} className={`w-full mt-3 flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition ${live?"bg-rose-500/10 text-rose-400 hover:bg-rose-500/20":"bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"}`}>{live?<><Pause size={14}/> Pause monitoring</>:<><Play size={14}/> Resume monitoring</>}</button>
                 <p className="text-[10px] text-slate-600 mt-3">Demo mode Ã‚Â· Sample data only</p>
               </div>
             </div>
-          </section>
+          </section>}
+
+          {activeNav === "Anomalies" && <section className="space-y-4">
+            <div className="rounded-2xl border border-rose-500/20 bg-[#0b1d35] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h3 className="text-base font-semibold text-white">Detected anomalies</h3><p className="text-xs text-slate-400 mt-1">Alerts are recalculated from the currently loaded API requests and enabled rules.</p></div>
+                <span className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300">{anomalies.length} active alerts</span>
+              </div>
+              <div className="mt-5 space-y-3">
+                {periodRequests.filter(r => r.status >= 400 || r.duration >= 1000).map(r => <button key={r.id} onClick={() => setSelected(r)} className="w-full rounded-xl border border-white/[0.07] bg-[#091a30] p-4 text-left hover:border-blue-500/40 flex flex-wrap items-center justify-between gap-3">
+                  <span><span className="block text-sm font-medium text-white">{r.endpoint}</span><span className="block text-xs text-slate-500 mt-1">{r.method} · HTTP {r.status}{r.error ? ` · ${r.error}` : ""}</span></span>
+                  <span className={`text-xs font-semibold ${r.status >= 400 ? "text-rose-300" : "text-amber-300"}`}>{r.status >= 400 ? "Request failed" : `${r.duration} ms · Slow response`}</span>
+                </button>)}
+                {periodRequests.filter(r => r.status >= 400 || r.duration >= 1000).length === 0 && <p className="py-8 text-center text-sm text-slate-500">No request-level anomalies detected.</p>}
+              </div>
+              <button onClick={() => setShowRules(true)} className="mt-5 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-500">Configure detection rules</button>
+            </div>
+          </section>}
+
+          {activeNav === "Settings" && <section className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5">
+              <h3 className="text-base font-semibold text-white">Monitoring settings</h3>
+              <p className="mt-1 text-xs text-slate-500">Control automatic refresh and the dashboard time range.</p>
+              <div className="mt-6 flex items-center justify-between gap-4 border-b border-white/[0.07] pb-5"><div><p className="text-sm text-slate-200">Live monitoring</p><p className="text-xs text-slate-500 mt-1">Refresh data automatically every 15 seconds</p></div><button onClick={() => setLive(v => !v)} className={`rounded-lg px-4 py-2 text-xs font-semibold ${live ? "bg-emerald-500/10 text-emerald-300" : "bg-slate-500/10 text-slate-300"}`}>{live ? "Enabled" : "Paused"}</button></div>
+              <div className="mt-5 flex items-center justify-between gap-4"><label htmlFor="settings-period" className="text-sm text-slate-200">Time range</label><select id="settings-period" value={period} onChange={e => setPeriod(e.target.value)} className="rounded-lg border border-white/10 bg-[#091a30] px-3 py-2 text-xs text-slate-200"><option>Last 24 hours</option><option>Last 7 days</option><option>Last 30 days</option></select></div>
+            </div>
+            <div className="rounded-2xl border border-white/[0.08] bg-[#0b1d35] p-5">
+              <h3 className="text-base font-semibold text-white">Anomaly detection</h3><p className="mt-1 text-xs text-slate-500">Manage thresholds and alert detection.</p>
+              <div className="mt-5 flex items-center justify-between"><span className="text-sm text-slate-300">Detection engine</span><span className={`text-xs ${monitoringEnabled ? "text-emerald-300" : "text-slate-500"}`}>{monitoringEnabled ? "Enabled" : "Disabled"}</span></div>
+              <button onClick={() => setShowRules(true)} className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-xs font-semibold text-white hover:bg-blue-500">Configure anomaly rules</button>
+              <button onClick={refresh} disabled={refreshing || apiLoading} className="mt-3 w-full rounded-lg border border-white/10 py-2.5 text-xs text-slate-200 hover:border-blue-500/50 disabled:opacity-50">Refresh monitoring data</button>
+              <button onClick={() => window.location.reload()} className="mt-3 w-full rounded-lg border border-white/10 py-2.5 text-xs text-slate-400 hover:text-white">Reload dashboard page</button>
+            </div>
+          </section>}
 
           <footer className="flex flex-col sm:flex-row justify-between gap-2 border-t border-white/[0.06] pt-5 text-[11px] text-slate-600">
             <span>Ã‚Â© 2026 Nexus Observe Ã‚Â· Frontend Observability Platform</span>
@@ -599,6 +699,16 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
 
 
 
