@@ -1,0 +1,4 @@
+import type {ApiRequestRecord,HttpMethod} from "../models/request";
+const paths=["/api/users","/api/products","/api/orders","/api/auth/login","/api/analytics","/api/cart","/api/payments","/api/search"];
+const methods:HttpMethod[]=["GET","GET","GET","POST","GET","PATCH","POST","GET"];
+export const demoRequests:ApiRequestRecord[]=Array.from({length:64},(_,i)=>{const failed=i%13===0||i%17===0;const status=failed?(i%2?500:401):200;return{id:`demo-${1000+i}`,timestamp:new Date(Date.now()-i*4*60000).toISOString(),method:methods[i%8],endpoint:paths[i%8],status,duration:i%19===0?3400:i%7===0?1350:85+(i*47)%680,responseSize:700+(i*331)%12000,requestHeaders:{Accept:"application/json"},responseHeaders:{"Content-Type":"application/json"},responseBody:failed?{error:"Simulated error"}:{ok:true,sample:i},errorMessage:failed?"Simulated demo failure":undefined};});
