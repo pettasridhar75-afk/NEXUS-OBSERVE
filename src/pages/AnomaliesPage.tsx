@@ -15,7 +15,9 @@ export function AnomaliesPage({
     (finding) => finding.severity === "critical"
   ).length;
 
-  const warnings = findings.length - critical;
+  const warnings = findings.filter(
+    (finding) => finding.severity === "warning"
+  ).length;
 
   return (
     <section className="panel">
@@ -34,12 +36,12 @@ export function AnomaliesPage({
       </div>
 
       <div className="anomaly-summary">
-        <div>
+        <div className="anomaly-summary-card critical-card">
           <strong>{critical}</strong>
           <span>Critical issues</span>
         </div>
 
-        <div>
+        <div className="anomaly-summary-card warning-card">
           <strong>{warnings}</strong>
           <span>Warnings</span>
         </div>
@@ -48,11 +50,29 @@ export function AnomaliesPage({
       {findings.length > 0 ? (
         <div className="finding-list">
           {findings.map((finding) => (
-            <article className="finding" key={finding.id}>
+            <article
+              className={`finding ${
+                finding.severity === "critical"
+                  ? "finding-critical"
+                  : "finding-warning"
+              }`}
+              key={finding.id}
+            >
               <div>
                 <div className="finding-title">
                   <strong>{finding.type}</strong>
-                  <span>{finding.severity}</span>
+
+                  <span
+                    className={`severity-badge ${
+                      finding.severity === "critical"
+                        ? "severity-critical"
+                        : "severity-warning"
+                    }`}
+                  >
+                    {finding.severity === "critical"
+                      ? "CRITICAL"
+                      : "WARNING"}
+                  </span>
                 </div>
 
                 <b>{finding.endpoint}</b>

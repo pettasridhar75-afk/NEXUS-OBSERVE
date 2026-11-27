@@ -1206,3 +1206,158 @@ select:focus-visible,
     display: block;
     overflow: visible;
 } 
+/* Interactive GET and POST method cards */
+
+.method-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.method-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 22px;
+    border: 1px solid #e5eae5;
+    border-radius: 14px;
+    background: #ffffff;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s ease, border 0.2s ease,
+        box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.method-card:hover {
+    transform: translateY(-2px);
+}
+
+.method-card strong {
+    font-size: 28px;
+}
+
+.method-card small {
+    font-size: 12px;
+}
+
+.method-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.method-get {
+    color: #047857;
+    border-color: #d1fae5;
+}
+
+.method-get:hover,
+.method-get.selected {
+    background: #ecfdf5;
+    border-color: #059669;
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+}
+
+.method-post {
+    color: #1d4ed8;
+    border-color: #dbeafe;
+}
+
+.method-post:hover,
+.method-post.selected {
+    background: #eff6ff;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.method-card:focus-visible {
+    outline: 2px solid #64748b;
+    outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+    .method-cards {
+        grid-template-columns: 1fr;
+    }
+} 
+/* Anomaly severity summary cards */
+.anomaly-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.anomaly-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 22px;
+    border-radius: 14px;
+    border: 1px solid;
+    transition: 0.2s ease;
+}
+
+.anomaly-summary-card strong {
+    font-size: 30px;
+    font-weight: 700;
+}
+
+.anomaly-summary-card span {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.critical-card {
+    background: #fff1f2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
+.warning-card {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #c2410c;
+}
+
+/* Individual anomaly findings */
+.finding-critical {
+    border-left: 4px solid #ef4444 !important;
+    background: #fffafa;
+}
+
+.finding-warning {
+    border-left: 4px solid #f59e0b !important;
+    background: #fffcf7;
+}
+
+/* Severity labels */
+.severity-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.severity-critical {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.severity-warning {
+    background: #ffedd5;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+}
+
+@media (max-width: 600px) {
+    .anomaly-summary {
+        grid-template-columns: 1fr;
+    }
+} 

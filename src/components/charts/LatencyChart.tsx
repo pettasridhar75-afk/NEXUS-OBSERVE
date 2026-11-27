@@ -36,7 +36,7 @@ export function LatencyChart({ data }: { data: TrendBucket[] }) {
             tick={{ fill: "#87918a", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            unit=" ms"
+            allowDecimals={false}
           />
 
           <Tooltip
@@ -46,15 +46,28 @@ export function LatencyChart({ data }: { data: TrendBucket[] }) {
               border: "1px solid #e5eae5",
               fontSize: 12,
             }}
-            formatter={(value) => [`${value} ms`, "Average response time"]}
           />
 
           <Bar
-            dataKey="averageLatency"
-            name="Average response time"
+            dataKey="healthy"
+            name="Healthy"
+            stackId="requests"
             fill="#27845c"
+          />
+
+          <Bar
+            dataKey="warning"
+            name="Warning"
+            stackId="requests"
+            fill="#F59E0B"
+          />
+
+          <Bar
+            dataKey="critical"
+            name="Critical"
+            stackId="requests"
+            fill="#E5484D"
             radius={[5, 5, 0, 0]}
-            maxBarSize={42}
           />
         </BarChart>
       </ResponsiveContainer>

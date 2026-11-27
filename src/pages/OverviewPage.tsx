@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import type {
   ApiRequestRecord,
   RequestMetrics,
@@ -20,6 +21,24 @@ export function OverviewPage({
   onSelect: (r: ApiRequestRecord) => void;
   onExplore: () => void;
 }) {
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+
+  const getRequests = requests.filter(
+    (request) => request.method?.toUpperCase() === "GET"
+  );
+
+  const postRequests = requests.filter(
+    (request) => request.method?.toUpperCase() === "POST"
+  );
+
+  const displayedRequests = selectedMethod
+    ? requests.filter(
+        (request) => request.method?.toUpperCase() === selectedMethod
+      )
+    : requests;
+
+  const chartData = aggregateRequestsByHour(displayedRequests);
+
   return (
     <>
       <section className="metrics-grid">
@@ -48,10 +67,49 @@ export function OverviewPage({
         />
       </section>
 
+      <section className="method-cards">
+        <button
+          className={`method-card method-get ${
+            selectedMethod === "GET" ? "selected" : ""
+          }`}
+          onClick={() =>
+            setSelectedMethod((current) => (current === "GET" ? null : "GET"))
+          }
+        >
+          <span className="method-label">GET requests</span>
+          <strong>{getRequests.length.toLocaleString()}</strong>
+          <small>
+            {selectedMethod === "GET"
+              ? "Showing GET requests · Click to reset"
+              : "Click to filter dashboard"}
+          </small>
+        </button>
+
+        <button
+          className={`method-card method-post ${
+            selectedMethod === "POST" ? "selected" : ""
+          }`}
+          onClick={() =>
+            setSelectedMethod((current) => (current === "POST" ? null : "POST"))
+          }
+        >
+          <span className="method-label">POST requests</span>
+          <strong>{postRequests.length.toLocaleString()}</strong>
+          <small>
+            {selectedMethod === "POST"
+              ? "Showing POST requests · Click to reset"
+              : "Click to filter dashboard"}
+          </small>
+        </button>
+      </section>
+
       <section className="panel chart-panel">
         <div className="panel-heading">
           <div>
-            <h2>Response time throughout the day</h2>
+            <h2>
+              Response time throughout the day
+              {selectedMethod ? ` · ${selectedMethod}` : ""}
+            </h2>
             <p>
               Average API response time across the available hourly data.
             </p>
@@ -63,15 +121,16 @@ export function OverviewPage({
           </span>
         </div>
 
-        <LatencyChart
-          data={aggregateRequestsByHour(requests)}
-        />
+        <LatencyChart data={chartData} />
       </section>
 
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Latest API requests</h2>
+            <h2>
+              Latest API requests
+              {selectedMethod ? ` · ${selectedMethod}` : ""}
+            </h2>
             <p>
               Review recent requests, response statuses and execution times.
             </p>
@@ -83,7 +142,7 @@ export function OverviewPage({
         </div>
 
         <RequestTable
-          requests={requests.slice(0, 8)}
+          requests={displayedRequests.slice(0, 8)}
           onSelect={onSelect}
         />
       </section>
