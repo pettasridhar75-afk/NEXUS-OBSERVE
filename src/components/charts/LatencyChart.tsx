@@ -74,3 +74,4 @@ export function LatencyChart({ data }: { data: TrendBucket[] }) {
     </div>
   );
 }
+ 

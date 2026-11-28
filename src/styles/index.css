@@ -1205,7 +1205,8 @@ select:focus-visible,
 .chart-wrap svg {
     display: block;
     overflow: visible;
-} 
+}
+
 /* Interactive GET and POST method cards */
 
 .method-cards {
@@ -1281,7 +1282,8 @@ select:focus-visible,
     .method-cards {
         grid-template-columns: 1fr;
     }
-} 
+}
+
 /* Anomaly severity summary cards */
 .anomaly-summary {
     display: grid;
@@ -1359,5 +1361,540 @@ select:focus-visible,
 @media (max-width: 600px) {
     .anomaly-summary {
         grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================================
+   NEXUS OBSERVE - READABILITY + THEME SYSTEM
+   App theme is controlled by App.tsx: data-theme="light|dark"
+   ========================================================= */
+
+.app-shell {
+    --text: #202923;
+    --muted: #68766d;
+    --border: #e4ebe5;
+    --surface: #ffffff;
+    --surface-soft: #f6faf7;
+    --green: #176b4b;
+    --green-dark: #12563d;
+    --green-soft: #eaf4ed;
+    color: var(--text);
+    background: #f7f9f7;
+    transition: background-color .2s ease, color .2s ease;
+}
+
+/* More readable typography */
+.app-shell {
+    font-size: 14px;
+}
+
+.workspace-label,
+.eyebrow {
+    font-size: 12px;
+}
+
+.nav-item {
+    font-size: 14px;
+}
+
+.nav-item em {
+    font-size: 12px;
+}
+
+.sidebar-bottom strong {
+    font-size: 13px;
+}
+
+.sidebar-bottom small,
+.brand small {
+    font-size: 11px;
+}
+
+.breadcrumb {
+    font-size: 13px;
+}
+
+.live-button,
+.connection-pill {
+    font-size: 12px;
+}
+
+.subheading {
+    font-size: 14px;
+}
+
+.heading-meta {
+    font-size: 12px;
+}
+
+.primary-button,
+.secondary-button {
+    font-size: 13px;
+}
+
+.metric-card p {
+    font-size: 13px;
+}
+
+.metric-card small {
+    font-size: 12px;
+}
+
+.panel-heading h2 {
+    font-size: 17px;
+}
+
+.panel-heading p {
+    font-size: 13px;
+}
+
+.chart-legend,
+.bar-chart-value,
+.bar-chart-label {
+    font-size: 12px;
+}
+
+.request-table th {
+    font-size: 11px;
+}
+
+.request-table td {
+    font-size: 13px;
+}
+
+.request-table td strong {
+    font-size: 13px;
+}
+
+.request-table td small {
+    font-size: 11px;
+}
+
+.method,
+.status {
+    font-size: 11px;
+}
+
+.text-button,
+.demo-banner,
+.notice,
+.empty-state {
+    font-size: 13px;
+}
+
+.demo-banner b {
+    font-size: 11px;
+}
+
+.search-box input,
+.filter-bar select {
+    font-size: 13px;
+}
+
+.pagination {
+    font-size: 12px;
+}
+
+.pagination button {
+    font-size: 12px;
+}
+
+.insight-grid span,
+.count-pill,
+.anomaly-summary span {
+    font-size: 12px;
+}
+
+.finding-title strong {
+    font-size: 14px;
+}
+
+.finding-title span {
+    font-size: 11px;
+}
+
+.finding b {
+    font-size: 12px;
+}
+
+.finding p {
+    font-size: 13px;
+}
+
+.finding small,
+.rule-note {
+    font-size: 12px;
+}
+
+.setting-row strong {
+    font-size: 14px;
+}
+
+.setting-row small,
+.settings-subheading p,
+.settings-footnote {
+    font-size: 12px;
+}
+
+.rule-input {
+    font-size: 13px;
+}
+
+.detail-list span,
+.detail-list strong,
+.detail-drawer pre {
+    font-size: 12px;
+}
+
+.detail-drawer h3 {
+    font-size: 14px;
+}
+
+.error-callout {
+    font-size: 13px;
+}
+
+/* Theme control button */
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 13px;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    white-space: nowrap;
+    transition: .2s ease;
+}
+
+.theme-toggle:hover {
+    border-color: var(--green);
+    transform: translateY(-1px);
+}
+
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+}
+
+/* Light theme variables and surfaces */
+.app-shell[data-theme="light"] {
+    --text: #202923;
+    --muted: #68766d;
+    --border: #e4ebe5;
+    --surface: #ffffff;
+    --surface-soft: #f6faf7;
+    --green: #176b4b;
+    --green-dark: #12563d;
+    --green-soft: #eaf4ed;
+    background: #f7f9f7;
+    color: var(--text);
+}
+
+.app-shell[data-theme="light"] .main-area,
+.app-shell[data-theme="light"] .content {
+    background: #f7f9f7;
+}
+
+.app-shell[data-theme="light"] .topbar {
+    background: rgb(255 255 255 / 96%);
+}
+
+/* Dark theme */
+.app-shell[data-theme="dark"] {
+    --text: #e6eee8;
+    --muted: #a3b2a8;
+    --border: #293b32;
+    --surface: #17231d;
+    --surface-soft: #1c2b23;
+    --green: #55c28b;
+    --green-dark: #39a875;
+    --green-soft: #203c2e;
+    background: #101914;
+    color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .main-area,
+.app-shell[data-theme="dark"] .content {
+    background: #101914;
+    color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .sidebar,
+.app-shell[data-theme="dark"] .metric-card,
+.app-shell[data-theme="dark"] .panel,
+.app-shell[data-theme="dark"] .method-card,
+.app-shell[data-theme="dark"] .detail-drawer {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .topbar {
+    background: rgb(23 35 29 / 96%);
+    border-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .brand strong,
+.app-shell[data-theme="dark"] h1,
+.app-shell[data-theme="dark"] .panel-heading h2,
+.app-shell[data-theme="dark"] .metric-card>strong,
+.app-shell[data-theme="dark"] .request-table td strong,
+.app-shell[data-theme="dark"] .finding-title strong,
+.app-shell[data-theme="dark"] .finding b,
+.app-shell[data-theme="dark"] .setting-row strong,
+.app-shell[data-theme="dark"] .settings-subheading h3,
+.app-shell[data-theme="dark"] .detail-drawer h2,
+.app-shell[data-theme="dark"] .detail-drawer h3,
+.app-shell[data-theme="dark"] .detail-list strong,
+.app-shell[data-theme="dark"] .breadcrumb strong,
+.app-shell[data-theme="dark"] .sidebar-bottom strong,
+.app-shell[data-theme="dark"] .insight-grid strong,
+.app-shell[data-theme="dark"] .anomaly-summary strong,
+.app-shell[data-theme="dark"] .method-card strong {
+    color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .brand small,
+.app-shell[data-theme="dark"] .workspace-label,
+.app-shell[data-theme="dark"] .eyebrow,
+.app-shell[data-theme="dark"] .breadcrumb,
+.app-shell[data-theme="dark"] .subheading,
+.app-shell[data-theme="dark"] .heading-meta,
+.app-shell[data-theme="dark"] .panel-heading p,
+.app-shell[data-theme="dark"] .metric-card p,
+.app-shell[data-theme="dark"] .metric-card small,
+.app-shell[data-theme="dark"] .chart-legend,
+.app-shell[data-theme="dark"] .request-table td,
+.app-shell[data-theme="dark"] .request-table td small,
+.app-shell[data-theme="dark"] .request-table th,
+.app-shell[data-theme="dark"] .finding p,
+.app-shell[data-theme="dark"] .finding small,
+.app-shell[data-theme="dark"] .setting-row small,
+.app-shell[data-theme="dark"] .settings-subheading p,
+.app-shell[data-theme="dark"] .settings-footnote,
+.app-shell[data-theme="dark"] .detail-list span,
+.app-shell[data-theme="dark"] .detail-list strong,
+.app-shell[data-theme="dark"] .rule-note,
+.app-shell[data-theme="dark"] .pagination,
+.app-shell[data-theme="dark"] .empty-state,
+.app-shell[data-theme="dark"] .sidebar-bottom small {
+    color: var(--muted);
+}
+
+.app-shell[data-theme="dark"] .nav-item {
+    color: #b5c4ba;
+}
+
+.app-shell[data-theme="dark"] .nav-item:hover,
+.app-shell[data-theme="dark"] .nav-item.active {
+    color: #72d5a2;
+    background: #203c2e;
+}
+
+.app-shell[data-theme="dark"] .nav-item em {
+    color: #72d5a2;
+    background: #284735;
+}
+
+.app-shell[data-theme="dark"] .sidebar-bottom,
+.app-shell[data-theme="dark"] .request-table th,
+.app-shell[data-theme="dark"] .request-table td,
+.app-shell[data-theme="dark"] .setting-row,
+.app-shell[data-theme="dark"] .rule-input {
+    border-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .request-table tbody tr:hover {
+    background: #203027;
+}
+
+.app-shell[data-theme="dark"] .request-table td {
+    border-bottom-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .live-button,
+.app-shell[data-theme="dark"] .secondary-button,
+.app-shell[data-theme="dark"] .search-box,
+.app-shell[data-theme="dark"] .filter-bar select,
+.app-shell[data-theme="dark"] .pagination button,
+.app-shell[data-theme="dark"] .toggle,
+.app-shell[data-theme="dark"] .rule-input input,
+.app-shell[data-theme="dark"] .theme-toggle,
+.app-shell[data-theme="dark"] .detail-drawer pre {
+    background: var(--surface-soft);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .search-box input {
+    color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .insight-grid>div,
+.app-shell[data-theme="dark"] .anomaly-summary>div,
+.app-shell[data-theme="dark"] .rule-note,
+.app-shell[data-theme="dark"] .detail-list,
+.app-shell[data-theme="dark"] .bar-chart-track {
+    background: var(--surface-soft);
+    border-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .bar-chart {
+    border-bottom-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .bar-chart-value,
+.app-shell[data-theme="dark"] .bar-chart-label {
+    color: var(--muted);
+}
+
+.app-shell[data-theme="dark"] .finding {
+    background: var(--surface-soft);
+    border-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .finding-critical {
+    border-left-color: #f87171 !important;
+    background: #322321;
+}
+
+.app-shell[data-theme="dark"] .finding-warning {
+    border-left-color: #fbbf24 !important;
+    background: #332d20;
+}
+
+.app-shell[data-theme="dark"] .critical-card {
+    background: #382525;
+    color: #fecaca;
+    border-color: #653737;
+}
+
+.app-shell[data-theme="dark"] .warning-card {
+    background: #382d1f;
+    color: #fed7aa;
+    border-color: #654b2e;
+}
+
+.app-shell[data-theme="dark"] .severity-critical {
+    background: #482929;
+    color: #fecaca;
+    border-color: #743b3b;
+}
+
+.app-shell[data-theme="dark"] .severity-warning {
+    background: #493520;
+    color: #fed7aa;
+    border-color: #76542e;
+}
+
+.app-shell[data-theme="dark"] .method {
+    background: #29352d;
+    color: #c5d2c9;
+}
+
+.app-shell[data-theme="dark"] .method-post {
+    background: #263649;
+    color: #bfdbfe;
+}
+
+.app-shell[data-theme="dark"] .method-delete {
+    background: #432d2b;
+    color: #fecaca;
+}
+
+.app-shell[data-theme="dark"] .status-ok {
+    color: #6ee7b7;
+}
+
+.app-shell[data-theme="dark"] .status-error {
+    color: #fca5a5;
+}
+
+.app-shell[data-theme="dark"] .demo-banner {
+    background: #332c20;
+    border-color: #5c4b30;
+    color: #f0d8a8;
+}
+
+.app-shell[data-theme="dark"] .notice {
+    background: #20372a;
+    color: #c5e5d0;
+}
+
+.app-shell[data-theme="dark"] .error-notice {
+    background: #3b2826;
+    color: #fecaca;
+}
+
+.app-shell[data-theme="dark"] .empty-state {
+    color: var(--muted);
+}
+
+.app-shell[data-theme="dark"] .drawer-backdrop {
+    background: rgb(0 0 0 / 55%);
+}
+
+.app-shell[data-theme="dark"] .detail-drawer {
+    box-shadow: -10px 0 35px rgb(0 0 0 / 30%);
+}
+
+.app-shell[data-theme="dark"] .chart-wrap svg text {
+    fill: #a3b2a8;
+}
+
+.app-shell[data-theme="dark"] .chart-wrap svg line {
+    stroke: #293b32;
+}
+
+.app-shell[data-theme="dark"] .chart-wrap svg .recharts-tooltip-wrapper {
+    color: #202923;
+}
+
+.app-shell[data-theme="dark"] .mobile-menu {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.app-shell[data-theme="dark"] .primary-button {
+    color: #fff;
+}
+
+.app-shell[data-theme="dark"] .toggle.on {
+    background: #203c2e;
+    color: #72d5a2;
+    border-color: #355b45;
+}
+
+.app-shell[data-theme="dark"] .source-tag {
+    background: #3a3022;
+    color: #f0d8a8;
+}
+
+.app-shell[data-theme="dark"] .source-tag.api {
+    background: #203c2e;
+    color: #72d5a2;
+}
+
+@media (max-width: 760px) {
+    .theme-toggle {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+
+    .top-actions {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 430px) {
+    .app-shell .bar-chart-label {
+        font-size: 11px;
     }
 } 

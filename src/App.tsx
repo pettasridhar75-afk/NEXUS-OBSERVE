@@ -24,6 +24,8 @@ import {
   validateRules,
 } from "./utils/anomalyDetection";
 
+type Theme = "light" | "dark";
+
 export default function App() {
   const {
     requests,
@@ -40,6 +42,15 @@ export default function App() {
   const [selected, setSelected] = useState<ApiRequestRecord | null>(null);
   const [live, setLive] = useState(true);
   const [rules, setRules] = useState<AnomalyRules>(defaultRules);
+
+  const [theme, setTheme] = useState<Theme>(() => {
+    const savedTheme = localStorage.getItem("nexus-observe-theme");
+    return savedTheme === "dark" ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("nexus-observe-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!live) return;
@@ -70,6 +81,10 @@ export default function App() {
     setSelected(null);
   }
 
+  function toggleTheme() {
+    setTheme((current) => current === "light" ? "dark" : "light");
+  }
+
   const pageDescriptions: Record<DashboardView, string> = {
     Overview: "A clear picture of your API activity and reliability.",
     "API Explorer": "Find requests, review responses and investigate failures.",
@@ -79,7 +94,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       <Sidebar
         active={view}
         onNavigate={navigate}
@@ -105,6 +120,15 @@ export default function App() {
           </div>
 
           <div className="top-actions">
+            <button
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+              title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+            >
+              {theme === "light" ? "☾ Dark mode" : "☀ Light mode"}
+            </button>
+
             <span className={`connection-pill ${source}`}>
               <i />
               {source === "api" ? "Connected API" : "Demo data"}
